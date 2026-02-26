@@ -1,5 +1,5 @@
 # Labforge
-> [!IMPORTANT]
+> [!WARNING]
 > Labforge is still a work in progress. Use at your own risk.
 
 Spin up isolated threat research labs locally with Docker. No cloud accounts, no Terraform, no VPN — just `labforge build`.

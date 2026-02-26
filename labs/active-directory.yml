@@ -1,0 +1,75 @@
+name: "active-directory"
+description: "Windows DC + Windows workstation + Kali for Active Directory pentesting"
+version: "1.0"
+author: "labforge"
+
+settings:
+  lab_password: "labforge123!"
+
+network:
+  subnet: "auto"
+
+services:
+  - name: dc01
+    image: "dockurr/windows"
+    hostname: dc01
+    ip_offset: 10
+    platform: windows-docker
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "8006:8006"
+    environment:
+      VERSION: "2022"
+      RAM_SIZE: "4G"
+      DISK_SIZE: "32G"
+    volumes:
+      - dc-data:/storage
+    access:
+      - label: "Domain Controller (Web)"
+        url: "http://localhost:8006"
+        credentials:
+          username: "Administrator"
+          password: "${lab_password}"
+
+  - name: workstation
+    image: "dockurr/windows"
+    hostname: ws01
+    ip_offset: 11
+    platform: windows-docker
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "8007:8006"
+      - "3389:3389"
+    environment:
+      VERSION: "tiny11"
+      RAM_SIZE: "4G"
+      DISK_SIZE: "32G"
+    volumes:
+      - ws-data:/storage
+    access:
+      - label: "Workstation Desktop (Web)"
+        url: "http://localhost:8007"
+      - label: "Workstation RDP"
+        url: "rdp://localhost:3389"
+
+  - name: kali
+    image: "kalilinux/kali-rolling"
+    hostname: kali
+    ip_offset: 12
+    platform: linux
+    resources:
+      memory: "2g"
+      cpus: "2"
+    command: "sleep infinity"
+    restart: unless-stopped
+    access:
+      - label: "Kali Shell"
+        url: "labforge shell <lab-id> -s kali"
+
+volumes:
+  dc-data: {}
+  ws-data: {}

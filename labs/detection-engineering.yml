@@ -1,0 +1,88 @@
+name: "detection-engineering"
+description: "Splunk SIEM + Windows endpoint + Kali for writing and testing detection rules"
+version: "1.0"
+author: "labforge"
+
+settings:
+  lab_password: "labforge123!"
+
+network:
+  subnet: "auto"
+
+services:
+  - name: splunk
+    image: "splunk/splunk:latest"
+    hostname: splunk
+    ip_offset: 10
+    platform: linux
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "8000:8000"
+      - "8088:8088"
+      - "8089:8089"
+      - "9997:9997"
+    environment:
+      SPLUNK_START_ARGS: "--accept-license"
+      SPLUNK_PASSWORD: "${lab_password}"
+    volumes:
+      - splunk-var:/opt/splunk/var
+      - splunk-etc:/opt/splunk/etc
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: "30s"
+      timeout: "10s"
+      retries: 10
+      start_period: "120s"
+    restart: unless-stopped
+    access:
+      - label: "Splunk Web"
+        url: "http://localhost:8000"
+        credentials:
+          username: "admin"
+          password: "${lab_password}"
+      - label: "Splunk HEC"
+        url: "https://localhost:8088"
+
+  - name: windows-endpoint
+    image: "dockurr/windows"
+    hostname: win-endpoint
+    ip_offset: 11
+    platform: windows-docker
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "8006:8006"
+      - "3389:3389"
+    environment:
+      VERSION: "tiny11"
+      RAM_SIZE: "4G"
+      DISK_SIZE: "32G"
+    volumes:
+      - windows-data:/storage
+    access:
+      - label: "Windows Desktop (Web)"
+        url: "http://localhost:8006"
+      - label: "Windows RDP"
+        url: "rdp://localhost:3389"
+
+  - name: kali
+    image: "kalilinux/kali-rolling"
+    hostname: kali
+    ip_offset: 12
+    platform: linux
+    resources:
+      memory: "2g"
+      cpus: "2"
+    command: "sleep infinity"
+    restart: unless-stopped
+    access:
+      - label: "Kali Shell"
+        url: "labforge shell <lab-id> -s kali"
+
+volumes:
+  splunk-var: {}
+  splunk-etc: {}
+  windows-data: {}

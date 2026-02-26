@@ -1,0 +1,79 @@
+name: "reverse-engineering"
+description: "Ghidra + REMnux + CyberChef for binary analysis and reverse engineering"
+version: "1.0"
+author: "labforge"
+
+settings:
+  lab_password: "labforge123!"
+
+network:
+  subnet: "auto"
+
+services:
+  - name: ghidra
+    image: "ghcr.io/linuxserver/ghidra:latest"
+    hostname: ghidra
+    ip_offset: 10
+    platform: linux
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - ghidra-data:/config
+      - samples:/samples
+    restart: unless-stopped
+    access:
+      - label: "Ghidra Desktop (Web)"
+        url: "https://localhost:3001"
+        credentials:
+          username: "abc"
+          password: "${lab_password}"
+
+  - name: remnux
+    image: "remnux/remnux-distro:focal"
+    hostname: remnux
+    ip_offset: 11
+    platform: linux
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "6901:6901"
+    environment:
+      VNC_PW: "${lab_password}"
+    volumes:
+      - remnux-data:/home/remnux
+      - samples:/samples
+    restart: unless-stopped
+    access:
+      - label: "REMnux Desktop (noVNC)"
+        url: "http://localhost:6901"
+        credentials:
+          username: "remnux"
+          password: "${lab_password}"
+
+  - name: cyberchef
+    image: "ghcr.io/gchq/cyberchef:latest"
+    hostname: cyberchef
+    ip_offset: 12
+    platform: linux
+    resources:
+      memory: "512m"
+      cpus: "1"
+    ports:
+      - "8000:80"
+    restart: unless-stopped
+    access:
+      - label: "CyberChef Web"
+        url: "http://localhost:8000"
+
+volumes:
+  ghidra-data: {}
+  remnux-data: {}
+  samples: {}

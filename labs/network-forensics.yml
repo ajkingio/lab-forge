@@ -1,0 +1,125 @@
+name: "network-forensics"
+description: "Elasticsearch + Kibana + Zeek + Suricata for packet analysis and IDS"
+version: "1.0"
+author: "labforge"
+
+settings:
+  lab_password: "labforge123!"
+  elastic_password: "${lab_password}"
+
+network:
+  subnet: "auto"
+
+services:
+  - name: elasticsearch
+    image: "docker.elastic.co/elasticsearch/elasticsearch:8.12.0"
+    hostname: elasticsearch
+    ip_offset: 10
+    platform: linux
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: "single-node"
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms2g -Xmx2g"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: "30s"
+      timeout: "10s"
+      retries: 10
+      start_period: "60s"
+    restart: unless-stopped
+    access:
+      - label: "Elasticsearch API"
+        url: "http://localhost:9200"
+
+  - name: kibana
+    image: "docker.elastic.co/kibana/kibana:8.12.0"
+    hostname: kibana
+    ip_offset: 11
+    platform: linux
+    resources:
+      memory: "2g"
+      cpus: "1"
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: "30s"
+      timeout: "10s"
+      retries: 10
+      start_period: "120s"
+    restart: unless-stopped
+    access:
+      - label: "Kibana Web"
+        url: "http://localhost:5601"
+
+  - name: zeek
+    image: "zeekurity/zeek:latest"
+    hostname: zeek
+    ip_offset: 12
+    platform: linux
+    resources:
+      memory: "2g"
+      cpus: "2"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    command: "zeek -i any local"
+    volumes:
+      - zeek-logs:/usr/local/zeek/logs
+    restart: unless-stopped
+    access:
+      - label: "Zeek Logs"
+        url: "Volume: zeek-logs"
+
+  - name: suricata
+    image: "jasonish/suricata:latest"
+    hostname: suricata
+    ip_offset: 13
+    platform: linux
+    resources:
+      memory: "2g"
+      cpus: "2"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    command: "suricata -i any"
+    volumes:
+      - suricata-logs:/var/log/suricata
+    restart: unless-stopped
+    access:
+      - label: "Suricata Logs"
+        url: "Volume: suricata-logs"
+
+  - name: tcpdump
+    image: "nicolaka/netshoot"
+    hostname: tcpdump
+    ip_offset: 14
+    platform: linux
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    command: "tcpdump -i any -w /captures/traffic.pcap"
+    volumes:
+      - captures:/captures
+    restart: unless-stopped
+    access:
+      - label: "Packet captures"
+        url: "Volume: captures"
+
+volumes:
+  es-data: {}
+  zeek-logs: {}
+  suricata-logs: {}
+  captures: {}

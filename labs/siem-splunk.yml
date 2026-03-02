@@ -1,0 +1,60 @@
+name: "siem-splunk"
+description: "Dedicated Splunk SIEM for lab log ingestion"
+version: "2.0"
+author: "labforge"
+
+settings:
+  lab_password: "labforge123!"
+  siem_hec_token: "labforge-hec-token"
+  siem_hec_port: "8088"
+  splunk_apps_dir: "splunk-apps"
+
+network:
+  subnet: "auto"
+
+services:
+  - name: splunk
+    image: "splunk/splunk:latest"
+    hostname: splunk
+    ip_offset: 10
+    platform: linux
+    resources:
+      memory: "6g"
+      cpus: "2"
+    ports:
+      - "15100:8000"
+      - "15101:8088"
+      - "15102:8089"
+      - "15103:9997"
+    environment:
+      SPLUNK_START_ARGS: "--accept-license"
+      SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
+      SPLUNK_PASSWORD: "${lab_password}"
+    volumes:
+      - splunk-var:/opt/splunk/var
+      - splunk-etc:/opt/splunk/etc
+      - "${splunk_apps_dir}:/tmp/splunk-apps:ro"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: "30s"
+      timeout: "10s"
+      retries: 10
+      start_period: "120s"
+    restart: unless-stopped
+    post_start:
+      - "/opt/splunk/bin/splunk enable listen 9997 -auth admin:${lab_password} || true"
+      - "/opt/splunk/bin/splunk http-event-collector enable -auth admin:${lab_password} || true"
+      - "/opt/splunk/bin/splunk http-event-collector create labforge -token ${siem_hec_token} -index main -auth admin:${lab_password} || true"
+      - "if [ -d /tmp/splunk-apps ] && ls /tmp/splunk-apps/* >/dev/null 2>&1; then for app in /tmp/splunk-apps/*; do /opt/splunk/bin/splunk install app \"$app\" -auth admin:${lab_password} -update 1 || true; done; /opt/splunk/bin/splunk restart || true; fi"
+    access:
+      - label: "Splunk Web"
+        url: "http://localhost:15100"
+        credentials:
+          username: "admin"
+          password: "${lab_password}"
+      - label: "Splunk HEC"
+        url: "https://localhost:15101"
+
+volumes:
+  splunk-var: {}
+  splunk-etc: {}

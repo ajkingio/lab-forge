@@ -37,16 +37,15 @@ labforge destroy <lab-id> --volumes
 
 | Template | Services | Use case |
 |----------|----------|----------|
-| **malware-analysis** | REMnux, Windows sandbox, INetSim, tcpdump | Malware detonation and analysis |
-| **detection-engineering** | Splunk, Windows endpoint, Kali | Write and test detection rules |
-| **network-forensics** | Elasticsearch, Kibana, Zeek, Suricata, tcpdump | Packet analysis and IDS |
-| **active-directory** | Windows DC, Windows workstation, Kali | AD pentesting |
-| **reverse-engineering** | Ghidra, REMnux, CyberChef | Binary analysis and RE |
+| **malware-analysis** | Windows dynamic, Linux static, INetSim | Malware analysis + reverse engineering |
+| **siem-splunk** | Splunk SIEM | Centralized log ingestion for all labs |
+| **ad-range** | Windows DC, Windows server, Windows workstation, Linux server, Zeek, Suricata | AD lab with endpoint + network telemetry |
+| **attack** | Kali Linux | Attacker box to reach other ranges |
 
 ## Commands
 
 ```
-labforge build -t <template> [-n name] [--override KEY=VAL]
+labforge build -t <template> [-n name] [--siem <lab-id>] [--override KEY=VAL]
 labforge destroy <lab-id> [--volumes] [--force]
 labforge start <lab-id>
 labforge stop <lab-id>
@@ -102,6 +101,56 @@ services:
 ```
 
 Variables like `${lab_password}` are interpolated from `settings`. Each lab gets an isolated /24 subnet with static IPs derived from `ip_offset`.
+
+## SIEM log forwarding
+
+Build a dedicated SIEM first, then attach ranges to it:
+
+```bash
+labforge build -t siem-splunk
+# later...
+labforge build -t malware-analysis --siem <siem-lab-id>
+labforge build -t ad-range --siem <siem-lab-id>
+```
+
+The log forwarder ships Docker logs plus endpoint/network telemetry volumes when present.
+`--splunk <lab-id>` is still accepted as a deprecated alias for backward compatibility.
+
+Default SIEM routing:
+
+| Source | Fluent Bit tag | Splunk sourcetype | Default index |
+|--------|-----------------|-------------------|---------------|
+| Docker container logs | `docker.*` | `labforge:docker` | `siem_index_infra` (`main`) |
+| Zeek logs | `zeek.*` | `zeek:json` | `siem_index_network` (`main`) |
+| Suricata logs | `suricata.*` | `suricata:eve` | `siem_index_network` (`main`) |
+| Snort logs (if volume exists) | `snort.*` | `snort:alert` | `siem_index_network` (`main`) |
+| Sysmon for Linux logs | `sysmon.*` | `sysmon:linux` | `siem_index_endpoint` (`main`) |
+| Windows forwarded logs (if volume exists) | `windows.*` | `WinEventLog:Forwarded` | `siem_index_endpoint` (`main`) |
+
+SIEM settings can be overridden via template settings or `--override`:
+- `siem_hec_host`, `siem_hec_port`, `siem_hec_token`
+- `siem_index_main`, `siem_index_infra`, `siem_index_network`, `siem_index_endpoint`
+
+## Attack box connectivity
+
+The `attack` template auto-attaches to all existing lab networks at build time so the Kali box can reach other ranges.
+
+## Splunk apps (TAs + ES Content Update)
+
+The `siem-splunk` template will auto-install any Splunk apps placed in `splunk-apps/` at build time.
+Download the required TAs and the Splunk ES Content Update app from Splunkbase, drop the `.tgz` or `.spl` files into `splunk-apps/`, then rebuild the lab.
+
+## Windows Sysmon setup
+
+For Windows hosts, run the helper script to install Sysmon and Splunk Universal Forwarder:
+
+```powershell
+scripts\windows\setup-sysmon.ps1 `
+  -SplunkHost splunk `
+  -SplunkUFMsiPath C:\path\to\splunkforwarder.msi `
+  -SplunkUFAdminPassword <password> `
+  -SysmonZipPath C:\path\to\Sysmon.zip
+```
 
 ## How it works
 

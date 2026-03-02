@@ -8,25 +8,38 @@ from labforge.network import NetworkAllocator
 class ComposeGenerator:
     """Transforms a validated lab config into a docker-compose.yml dict."""
 
-    def generate(self, config: dict, subnet: str, lab_id: str) -> dict:
+    def generate(
+        self,
+        config: dict,
+        subnet: str,
+        lab_id: str,
+        external_networks: dict[str, str] | None = None,
+    ) -> dict:
         """Generate a docker-compose.yml dict from lab config and allocated subnet."""
         network_name = f"labforge-{lab_id}"
+        networks = {
+            network_name: {
+                "driver": "bridge",
+                "ipam": {
+                    "config": [
+                        {
+                            "subnet": subnet,
+                            "gateway": NetworkAllocator.gateway_ip(subnet),
+                        }
+                    ]
+                },
+            }
+        }
+        for key, name in (external_networks or {}).items():
+            networks[key] = {
+                "external": True,
+                "name": name,
+            }
+
         compose = {
             "version": "3.8",
             "services": {},
-            "networks": {
-                network_name: {
-                    "driver": "bridge",
-                    "ipam": {
-                        "config": [
-                            {
-                                "subnet": subnet,
-                                "gateway": NetworkAllocator.gateway_ip(subnet),
-                            }
-                        ]
-                    },
-                }
-            },
+            "networks": networks,
         }
 
         # Volumes
@@ -51,9 +64,10 @@ class ComposeGenerator:
             service["hostname"] = svc["hostname"]
 
         ip = NetworkAllocator.compute_ip(subnet, svc["ip_offset"])
-        service["networks"] = {
-            network_name: {"ipv4_address": ip}
-        }
+        networks = {network_name: {"ipv4_address": ip}}
+        for extra in svc.get("extra_networks", []):
+            networks[extra] = {}
+        service["networks"] = networks
 
         if svc.get("platform") == "windows-docker":
             service["devices"] = ["/dev/kvm"]

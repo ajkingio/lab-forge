@@ -1,0 +1,31 @@
+name: "attack"
+description: "Kali Linux attacker box to reach other ranges"
+version: "2.0"
+author: "labforge"
+
+settings:
+  lab_password: "labforge123!"
+
+network:
+  subnet: "auto"
+
+services:
+  - name: kali
+    image: "kasmweb/kali-rolling-desktop:1.18.0"
+    hostname: kali
+    ip_offset: 10
+    platform: linux
+    resources:
+      memory: "4g"
+      cpus: "2"
+    ports:
+      - "15200:6901"
+    environment:
+      VNC_PW: "${lab_password}"
+    restart: unless-stopped
+    access:
+      - label: "Kali Desktop (Web)"
+        url: "https://localhost:15200"
+        credentials:
+          username: "kasm_user"
+          password: "${lab_password}"

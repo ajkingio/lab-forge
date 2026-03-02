@@ -38,9 +38,11 @@ def cli():
 @cli.command()
 @click.option("-t", "--template", required=True, help="Lab template name or path to YAML file")
 @click.option("-n", "--name", default=None, help="Custom lab name")
+@click.option("--siem", default=None, help="Attach log forwarding to a running SIEM lab (lab ID)")
+@click.option("--splunk", default=None, help="Deprecated alias for --siem")
 @click.option("--override", multiple=True, help="Override settings as KEY=VAL")
 @handle_errors
-def build(template, name, override):
+def build(template, name, siem, splunk, override):
     """Build and start a lab from a template."""
     overrides = {}
     for o in override:
@@ -50,7 +52,15 @@ def build(template, name, override):
         k, v = o.split("=", 1)
         overrides[k] = v
 
-    controller.build(template, name=name, overrides=overrides or None)
+    if siem and splunk and siem != splunk:
+        console.print("[bold red]Error:[/bold red] --siem and --splunk refer to different labs")
+        raise SystemExit(1)
+
+    selected_siem = siem or splunk
+    if splunk and not siem:
+        console.print("[yellow]Warning:[/yellow] --splunk is deprecated; use --siem")
+
+    controller.build(template, name=name, overrides=overrides or None, siem_lab=selected_siem)
 
 
 @cli.command()
